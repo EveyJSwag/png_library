@@ -68,6 +68,20 @@ void png_loader::read_png_bytes()
     }
 }
 
+void png_loader::change_png_background(
+    unsigned int old_background_pixel,
+    unsigned int new_background_pixel)
+{
+    std::vector<unsigned int> new_png_colors;
+    for (int i = 0; i < png_colors.size(); i++)
+    {
+        if (png_colors[i] == old_background_pixel)
+        {
+            png_colors[i] = new_background_pixel;
+        }
+    }
+}
+
 void png_loader::load_png()
 {
     png_init_io(*png_struct_ptr.get(), *png_file_ptr.get());
@@ -82,13 +96,18 @@ void png_loader::load_png()
         &(info.interlace_method),
         &(info.compression_method), 
         &(info.filter_method));
+
+    if (info.color_type != 2)
+        throw png_loader_exception(__LINE__,__FILE__, "Other color types are not supported");
+
+    if ((int)info.bit_depth != 8)
+        throw png_loader_exception(__LINE__,__FILE__, "Only bit depth of 8 is supported");
 }
 
 const char* png_loader::png_loader_exception::what() const noexcept
 {
     return "png_loader exception";
 }
-
 
 std::vector<unsigned char> png_loader::convert_color_to_bytes(
     std::vector<unsigned int> color_vector)
@@ -100,28 +119,27 @@ std::vector<unsigned char> png_loader::convert_color_to_bytes(
         return_vector.push_back(GET_GREEN(color_vector[i], info.bit_depth));
         return_vector.push_back(GET_BLUE(color_vector[i], info.bit_depth));
     }
-    std::cout << return_vector.size() << std::endl;
-    std::cout << raw_png_bytes.size() << std::endl;
     return return_vector;
+}
+
+const unsigned char* png_loader::get_raw_png_bytes()
+{
+    return raw_png_bytes.data();
+}
+
+std::vector<unsigned char> png_loader::get_png_bytes()
+{
+    return raw_png_bytes;
+}
+
+std::vector<unsigned int> png_loader::get_png_colors()
+{
+    return png_colors;
 }
 
 void png_loader::write_to_png(const char* png_file_path)
 {
-    unsigned int bad_number = 0x00101090;
-    std::vector<unsigned int> new_png_colors;
-    for (int i = 0; i < png_colors.size(); i++)
-    {
-        if (png_colors[i] == bad_number)
-        {
-            new_png_colors.push_back(0x00FFFFFF);
-        }
-        else
-        {
-            new_png_colors.push_back(png_colors[i]);
-        }
-    }
-
-    std::vector<unsigned char> new_byte_vector = convert_color_to_bytes(new_png_colors);
+    std::vector<unsigned char> new_byte_vector = convert_color_to_bytes(png_colors);
 
     png_file_write_ptr = std::make_unique<FILE*>(fopen(png_file_path, "wb"));
     if (!(*png_file_write_ptr.get()))
