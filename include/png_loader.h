@@ -40,6 +40,8 @@ public:
 
     std::vector<unsigned int> get_png_colors();
 
+    png_info_t get_png_info();
+
     class png_loader_exception : public std::exception
     {
     public:

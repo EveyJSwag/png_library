@@ -216,3 +216,8 @@ png_loader::png_loader_exception::png_loader_exception(
 
     exception_details = exception_stream.str();
 }
+
+png_loader::png_info_t png_loader::get_png_info()
+{
+    return info;
+}
