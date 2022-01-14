@@ -1,13 +1,25 @@
 #include "png_loader.h"
 
 
-#define BUILD_COLOR(r, g, b, bit_depth)     b | (g << bit_depth) | (r << (bit_depth * 2))
+#define BUILD_COLOR(r, g, b, bit_depth)                 b | (g << bit_depth) | (r << (bit_depth * 2))
+#define BUILD_COLOR_ALPHA(r, g, b, a, bit_depth)        a | (b << bit_depth) | (g << (bit_depth * 2)) | (r << (bit_depth * 3))
 #define RED_MASK                            0xFF0000
 #define GREEN_MASK                          0x00FF00
 #define BLUE_MASK                           0x0000FF
-#define GET_RED(full_color, bit_depth)      ((RED_MASK & full_color) >> bit_depth *2)
-#define GET_GREEN(full_color, bit_depth)    ((GREEN_MASK & full_color) >> bit_depth)
-#define GET_BLUE(full_color, bit_depth)     ((BLUE_MASK & full_color))
+#define RED_MASK_A                          0xFF000000
+#define GREEN_MASK_A                        0x00FF0000
+#define BLUE_MASK_A                         0x0000FF00
+#define ALPHA_MASK_A                        0x000000FF
+
+
+#define GET_RED_ALPHA(full_color, bit_depth)      ((RED_MASK_A   & full_color) >> bit_depth * 3)
+#define GET_GREEN_ALPHA(full_color, bit_depth)    ((GREEN_MASK_A & full_color) >> bit_depth * 2)
+#define GET_BLUE_ALPHA(full_color, bit_depth)     ((BLUE_MASK_A  & full_color) >> bit_depth)
+#define GET_ALPHA(full_color, bit_depth)          ((ALPHA_MASK_A & full_color))
+
+#define GET_RED(full_color, bit_depth)            ((RED_MASK   & full_color) >> bit_depth * 2)
+#define GET_GREEN(full_color, bit_depth)          ((GREEN_MASK & full_color) >> bit_depth)
+#define GET_BLUE(full_color, bit_depth)           ((BLUE_MASK  & full_color))
 
 png_loader::png_loader(const char* png_file_path)
 {
@@ -33,7 +45,12 @@ png_loader::png_loader(const char* png_file_path)
 
     load_png();
     read_png_bytes();
-    read_png_colors();
+    
+    if (bytes_per_pixel == 4)
+        read_png_colors_alpha();
+    else if (bytes_per_pixel == 3)
+        read_png_colors();
+
 }
 
 void png_loader::read_png_colors()
@@ -45,9 +62,25 @@ void png_loader::read_png_colors()
     for (int height_byte_index = 0; height_byte_index < info.image_height; height_byte_index++)
     {
         png_bytep png_row = png_rows[height_byte_index];
-        for (int width_byte_index = 0; width_byte_index < info.image_width * 3; width_byte_index+=3)
+        for (int width_byte_index = 0; width_byte_index < info.image_width * bytes_per_pixel; width_byte_index+=3)
         {
             png_colors.push_back(BUILD_COLOR(png_row[width_byte_index], png_row[width_byte_index+1], png_row[width_byte_index+2], info.bit_depth));
+        }
+    } 
+}
+
+void png_loader::read_png_colors_alpha()
+{
+    png_bytepp png_rows;
+    png_rows = png_get_rows(*png_struct_ptr.get(), *png_info_ptr.get());
+    size_t total_bytes = png_get_rowbytes(*png_struct_ptr.get(), *png_info_ptr.get());
+
+    for (int height_byte_index = 0; height_byte_index < info.image_height; height_byte_index++)
+    {
+        png_bytep png_row = png_rows[height_byte_index];
+        for (int width_byte_index = 0; width_byte_index < info.image_width * bytes_per_pixel; width_byte_index+=4)
+        {
+            png_colors.push_back(BUILD_COLOR_ALPHA(png_row[width_byte_index], png_row[width_byte_index+1], png_row[width_byte_index+2], png_row[width_byte_index+3], info.bit_depth));
         }
     } 
 }
@@ -61,7 +94,7 @@ void png_loader::read_png_bytes()
     for (int height_byte_index = 0; height_byte_index < info.image_height; height_byte_index++)
     {
         png_bytep png_row = png_rows[height_byte_index];
-        for (int width_byte_index = 0; width_byte_index < info.image_width * 3; width_byte_index++)
+        for (int width_byte_index = 0; width_byte_index < info.image_width * bytes_per_pixel; width_byte_index++)
         {
             raw_png_bytes.push_back(png_row[width_byte_index]);
         }
@@ -97,11 +130,18 @@ void png_loader::load_png()
         &(info.compression_method), 
         &(info.filter_method));
 
-    if (info.color_type != 2)
+    if (info.color_type != 2 && info.color_type != PNG_COLOR_TYPE_RGBA)
         throw png_loader_exception(__LINE__,__FILE__, "Other color types are not supported");
 
     if ((int)info.bit_depth != 8)
         throw png_loader_exception(__LINE__,__FILE__, "Only bit depth of 8 is supported");
+
+    if (info.color_type == 2) 
+        bytes_per_pixel = 3;
+
+    if (info.color_type == PNG_COLOR_TYPE_RGBA) 
+        bytes_per_pixel = 4;
+
 }
 
 const char* png_loader::png_loader_exception::what() const noexcept
@@ -180,9 +220,9 @@ void png_loader::write_to_png(const char* png_file_path)
     {
         png_bytep png_byte_row = (png_bytep)png_malloc(
             *(png_write_struct_ptr.get()),   
-            sizeof(png_byte) * info.image_width * 3);
+            sizeof(png_byte) * info.image_width * bytes_per_pixel);
 
-        for (int k = 0; k < sizeof(png_byte) * info.image_width * 3; k++)
+        for (int k = 0; k < sizeof(png_byte) * info.image_width * bytes_per_pixel; k++)
         {
              png_byte_row[k] = *raw_byte_data;
              raw_byte_data++;

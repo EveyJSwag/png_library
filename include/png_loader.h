@@ -53,6 +53,9 @@ public:
     };
 
 private:
+
+    int bytes_per_pixel = 3;
+
     std::unique_ptr<FILE*> png_file_ptr;
     std::unique_ptr<png_structp> png_struct_ptr;
     std::unique_ptr<png_infop> png_info_ptr;
@@ -71,6 +74,8 @@ private:
     void load_png();
     void read_png_bytes();
     void read_png_colors();
+
+    void read_png_colors_alpha();
 };
 
  #endif /* PNG_LOADER_H */

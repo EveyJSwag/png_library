@@ -5,6 +5,15 @@ LINKING_FLAGS :=	-shared
 INCLUDE_PATHS :=	-I./include
 LIBRARIES :=		-lpng -lstdc++
 SHARED_OBJECT_NAME :=	libpngloader.dylib
+EXEC_NAME :=	test
+
+all: $(EXEC_NAME) lib/$(SHARED_OBJECT_NAME)
+
+$(EXEC_NAME) : $(O_FILES)
+	gcc -o $(EXEC_NAME) $(O_FILES) $(LIBRARIES)
+
+%.o : %.cpp
+	gcc $(INCLUDE_PATHS) $(COMPILE_FLAGS) $< -o $@
 
 lib/$(SHARED_OBJECT_NAME) : $(O_FILES)
 	gcc $(LINKING_FLAGS) -o lib/$(SHARED_OBJECT_NAME) $(O_FILES) $(LIBRARIES)
@@ -16,3 +25,4 @@ lib/$(SHARED_OBJECT_NAME) : $(O_FILES)
 clean:
 	rm src/*\.o
 	rm lib/*\.dylib
+	rm test
